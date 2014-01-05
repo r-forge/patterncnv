@@ -1,0 +1,24 @@
+ 
+importFrom(DNAcopy, CNA, segment, smooth.CNA, plotSample)
+importFrom(gplots, heatmap.2, bluered)
+importFrom(SNPchip, plotIdiogram)
+
+import(fdrtool,IRanges,GenomicRanges,methods,matrixStats)
+
+exportPattern("^[[:alpha:]]+")
+exportMethods(
+    "avgExonCoverage",
+    "cnvMatrix",
+    "coverageMatrix",
+    "exonInfo",
+    "exonNum",
+    "fdrMatrix",
+    "sampleCoverage",
+    "sampleInfo",
+    "sampleNum",
+    "show"
+)
+exportClasses(
+    "PatCNVData",
+    "PatCNVSession" 
+)
