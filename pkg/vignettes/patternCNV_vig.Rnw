@@ -1,0 +1,326 @@
+% \VignetteIndexEntry{patternCNV}
+% \VignetteDepends{methods, graphics, IRanges, GenomicRanges}
+% \VignetteKeyword{CNV, Exome-seq}
+
+\documentclass[a4paper]{article}
+
+\usepackage{url}
+
+\title{Detecting copy number variation (CNV) from exome-seq data using \textsf{patternCNV} package}
+\author{Chen Wang, Jared M. Evan and Yan W. Asmann\\}
+\date{\today}
+
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\setkeys{Gin}{width=0.7\textwidth} % figure size proportion
+
+\maketitle
+\tableofcontents
+
+\section{Introduction}
+
+Originally designed for revealing genomic mutations in coding regions, exome sequencing (exome-seq) data have also been utilized in detecting DNA copy number variants (CNVs). Despite the existence of several CNV detection tools, there is still a great need for a sensitive and accurate CNV calling algorithm with built-in quality-control/visualization functionalities, and does not require a paired reference for each sample.
+
+PatternCNV is a versatile tool to facilitate CNV detection and interpretation from either Germline or Tumor/Normal pairs of Exome-seq samples. "Pattern" stands for common trends summarized from Exome-seq data. PatternCNV consists two basic components: 1) BAM2WIG conversion implemented with Perl and Bash scripts: converting large BAM files to the light-weight WIG format, allowing for less computationally intense read-depth comparisons and simpler coverage visualization; 2) a set of CNV functions implemented in R which use the WIG files to facilitate pattern-learning, CNV detection, and various post-processing and visualization functions. To avoid garbage-in garbage-out situations, multiple QC checks are included in the tool, from exon- to sample-level. CNV results are investigated through interactive visualization or summary tables, across samples and/or genome. 
+
+This Vignette is intended to illustrate the utility of R function part of patternCNV, based on generated WIG files using BAM2WIG conversion (details in \url{http://bioinformaticstools.mayo.edu/research/patterncnv/}).
+
+\section{Required input files}
+
+\subsection{Required files} 
+
+There are two parts of required files: while part (1) is out of the scope of R functions, we just list here for the completeness of reference. We will mainly focus on part (2):
+
+(1) BAM2WIG conversion 
+
+(\url{http://bioinformaticstools.mayo.edu/research/patterncnv/})
+
+a. BAM files
+
+b. Exon BED file defining the exon regions and gene names
+
+c. Exome Capture Kit BED file defining the regions targeted by the exome capture probes
+
+d. config.txt file containing tool paths
+
+(2) PatternCNV R functions
+
+a. WIG files from step (1)
+
+b. Exon key file generated from step (1)
+
+c. configuration file containing required paths
+
+d. sample information file containing sample-specific information (name, type, etc.)
+
+
+\subsection{Detailed description of required files} 
+ 
+%==== Start === Detailed description of required files ===
+ 
+
+<<echo=FALSE,keep.source=FALSE>>=
+bincountvar <- "Bin\\\\_Count"
+
+plotDIRstring <- "plot\\\\_output\\\\_DIR = '<path of figure output directory>/' "
+txtDIRstring <- "plot\\\\_txt\\\\_DIR = '<path of text output directory>/' "
+exonKeystring <- "exon\\\\_key\\\\_file = '<path to exon key file>' "
+sampleInfostring <- "sample\\\\_info\\\\_file = '<path to sample information file>' "
+@
+
+Briefly, there are four type of file(s) required to run patternCNV R codes:
+\begin{enumerate}
+
+\item{ WIG file for each of your samples. These files need to be generated using the BAM2WIG code provided in the PatternCNV package (urlbam2wig). }
+
+\item{An Exon Key file generated during the BAM2WIG step. This should be the same Exon Key that was used to generate the WIG files. The purpose of this file is to provide additional details about the regions in the WIG files. The Exon Key uses 1-based coordinates. Example can be seen in Table \ref{Tab:exonkeyfile}.
+
+
+\begin{table}
+  \begin{center}
+    
+    \caption{An example of exon key file} 
+    \label{Tab:exonkeyfile}
+     
+    \begin{tabular}{lllllc}
+      \hline
+      \hline
+      Chr   & Start  & Stop   & \Sexpr{bincountvar} & Genes   & InCapture \\ 
+      chr1  & 803451 & 804050  &       60           &  FAM41C  & 0 \\
+      chr1  & 809492 & 810531	 &      104	          & FAM41C	& 0 \\
+      chr1  & 812126 & 812175	 &      5	            & FAM41C	& 0 \\
+      chr1	& 852953 & 853092	 &      14	          & FLJ39609&	1 \\
+      chr1	& 853402 & 853551	 &      15	          &FLJ39609	& 1 \\
+      chr1	& 854205 & 854294	 &      9	            & FLJ39609 &	1\\
+      chr1	& 854715 & 854814	 &      10	          & FLJ39609 & 1 \\
+      \hline
+      \hline
+    \end{tabular}
+    
+  \end{center}
+\end{table}
+
+}
+
+\item{Config ini file defining paths used by the R functions. These include paths to where the results will be written and paths to the sample info config file along with the Exon Key. Example can be seen in Table \ref{Tab:configfile}.
+
+
+
+\begin{table}
+  \begin{center}
+    
+    \caption{An example of configuration file} 
+     \label{Tab:configfile}
+    \begin{tabular}{l}
+      \hline
+      \hline
+      \\
+         \Sexpr{plotDIRstring} \\
+         \Sexpr{txtDIRstring} \\
+         \Sexpr{exonKeystring} \\
+         \Sexpr{sampleInfostring} \\
+      \\
+      \hline
+      \hline
+    \end{tabular}
+    
+  \end{center}
+\end{table}
+}
+
+\item{ sample information file containing sample-specific details used by the PatternCNV R functions. This file is tab-delimited with a header, 4 columns, and each sample's information should be on a separate row. The sample.name is a unique sample identifier. The subject.ID is either a unique identifier if all samples are germline or a shared identifier among Tumor/Normal pairs of samples for somatic CNV calling. The sample type can be either "Germline" of "Somatic" (Tumor). The file.name is the full path to the WIG file generated during the BAM2WIG step. Example can be seen in Table \ref{Tab:sampleinfofile}.
+
+\begin{table}
+  \begin{center}
+    
+    \caption{format of sample information file} 
+     \label{Tab:sampleinfofile}
+     
+    \begin{tabular}{llccc}
+      \hline
+      \hline
+      sample.name   & sample.type  & subject.ID  & file.name  \\ 
+      X01-Tumor  & Somatic & A       &  /<path.WIG>/X01-T.covg.wig \\
+      X01-Normal  & Germline & A       &  /<path.WIG>/X01-N.covg.wig \\
+      X02-Tumor  & Somatic & B      &  /<path.WIG>/X02-T.covg.wig \\
+      X02-Normal  & Germline & B       &  /<path.WIG>/X02-N.covg.wig \\
+      
+      
+      \hline
+      \hline
+    \end{tabular}
+    
+  \end{center}
+\end{table}
+
+}
+
+\end{enumerate}
+
+%==== End === Detailed description of required files ===
+
+\section{Quick examples using simulated data}
+
+
+If you would like to quickly try running some of the PatternCNV functions, we have simulated data on our server that can be pointed to from within R. The dataset consists of 12 Germline samples where 2 (c1, c2) contain CNVs. The coverage WIG files and exon key file have already been generated for these samples, so you can skip that step. 
+
+\subsection{Create patternCNV session and data objects}
+After installing patternCNV R package, the following commands can be run to create an initial patternCNV session object("sim.session"):
+<<tidy=TRUE>>=
+library(patternCNV)
+
+#=== make a configuration file according to simulation data
+config.filename <- "sim.ini"
+makeSimulation(config.filename)
+
+#=== load the simulation example according to configuration file
+sim.session <- createSession(config.filename)
+  
+#=== print basic session information
+summary(sim.session)
+@ 
+
+The created object "sim.session" contains sample and exon information, so that you can do some basic query to remind yourself what kind of samples are included, which genes are captured in the exome-seq data. SampleInfo(.) is useful function to list sample information (e.g. name, type, etc.). exonInfo(.) is another function to query basic information of exons.
+<<>>=
+#=== print basic sample information (sample name and sample type)
+sampleInfo(sim.session)
+
+#=== list information of the top 10 exons
+head(exonInfo(sim.session),10)
+@
+
+With created session, we can proceed to create a patternCNV data object by scanning coverage information of all the samples (we name it as "germline.data" to remind ourselves these sampels are all germline samples):
+<<>>=
+#=== scan coverages of multiple samples
+germline.data <- scanMultiCovg(session.name=sim.session)
+
+#=== print basic information of created patternCNV data object
+summary(germline.data)
+@
+
+
+Next, we can query the exon coverage information, by specifying gene names, chromosome positions, and/or sample names. We demonstrate a few examples to retrieve coverage information as below:
+<<>>=
+#=== we would like to know average coverage of all the exons 
+#=== belonging to gene "BIK" across samples
+avgExonCoverage(germline.data,gene.name=c("BIK"))
+
+#=== retrieve a coverage sub-matrix of 3 selected samples ("c1","n7" and "n9"), 
+#=== across all the exons between chr22:42-42.1Mb
+coverageMatrix(germline.data,sample.name=c("n7","n9","c1"),
+                 chr="chr22",pos.range=c(42e6,42.1e6))
+
+#=== retrive coverage sub-matrix of 3 selected samples ("c1","n7" and "n9"), 
+#=== of one given gene
+coverageMatrix(germline.data,sample.name=c("n7","n9","c1"),gene.name="NHP2L1")
+@
+
+\subsection{Learn patterns and compute CNVs}
+The fundamental algorithm of patternCNV is to learn average- and variability- patterns of a pool of samples, and then compute copy number variations (CNVs) by comparing case sample with trained patterns. Notice that we do not want to confound patterns with true biological signals, so it is advisable to use normal/Germline samples with very few CNV events to train the patterns.  
+
+<<>>=
+#=== train average- and variability- patterns
+learnPatterns(session.name=sim.session,refdata.name=germline.data)
+@
+
+Let us print germline.data before computing CNV:
+<<>>=
+#=== print patternCNV data information 
+#=== notice that here the CNV has not been computed yet
+summary(germline.data)
+@
+
+You can see that CNV information has not been generated yet. Next, Let us compute CNV and update data object "germline.data":
+<<>>=
+#=== compute CNV information and update/overwrite original data object
+germline.data <- computeMultiCNV(sim.session,germline.data)
+#=== print patternCNV data information again
+summary(germline.data)
+@
+
+Now, it seems CNV has been computed, so that we can access CNV data from germline.data object. 
+Let us firstly try to retrieve CNV vector of one single sample "c2":
+<<>>=
+cnv.vec <- cnvMatrix(germline.data,sample.name="c2")
+head(cnv.vec)
+@
+
+We could also retrieve a CNV sub-matrix of selected samples ("c2","n1" and "n5" in the following example):
+<<>>=
+cnv.mtx <- cnvMatrix(germline.data,sample.name=c("c2","n1","n5"))
+head(cnv.mtx)
+@
+
+
+\subsection{Visualization}
+
+It is informative to visualize the results to facilitate quality-control and easy interpretation. Let us check exonic coverage of two genes are well covered( sample legend can be hide by enforcing "legend.layout" as "none"):
+\begin{center}
+<<fig=TRUE>>=
+#=== generate coverage plot for two genes
+geneCoverageQC(germline.data, c("BIK","TTLL1"))
+@
+\end{center}
+
+\begin{center}
+<<fig=TRUE>>=
+#=== generate the same coverage plot but hiding sample-legend for clarity
+geneCoverageQC(germline.data, c("BIK","TTLL1"), legend.layout="none")
+@
+\end{center}
+
+Sample-level CNV results can be visualized by specifying sample name and chromosome range of interest (sample "c2"):
+
+\begin{center}
+<<fig=TRUE>>=
+#=== plot CNV of given chr/pos range
+plotChrCNV(germline.data,sel.chr="chr22",pos.range=c(41e6,44e6),
+                  min.ref.avgRPKM=1,cex=1.2,sample.name="c2")
+@
+\end{center}
+
+CNV plot of sample "n3":
+\begin{center}
+<<fig=TRUE>>=
+plotChrCNV(germline.data,sel.chr="chr22",pos.range=c(41e6,44e6),  
+                  min.ref.avgRPKM=1,cex=1.2,sample.name="n3")
+@                  
+\end{center}
+
+Or, we can display exonic CNV heatmap of selected genes across all the samples 
+\begin{center}
+<<fig=TRUE>>=
+#=== assume we have a list of genes of interest
+sel.gene.list <- c("NAGA","ARFGAP3","CYB5R3","POLR3H","FAM109B")
+plotGeneHeatmap(germline.data, sel.gene.name=sel.gene.list)
+@
+\end{center}
+
+if we want keep exon ungrouped:
+
+\begin{center}
+<<fig=TRUE>>=
+plotGeneHeatmap(germline.data,sel.gene.name=sel.gene.list,
+                       Rowv=FALSE,dendrogram="column")
+@
+\end{center}
+
+\section{Additional functions (for advanced usages)}
+As this vignette is only intended to demonstrate basics of patternCNV through light-weighted examples, we leave a few other useful functions un-illustrated:
+
+\begin{enumerate}
+  \item{chrCoverageQC(.): this function helps to check if chromsome-level coverage is consistent across samples. It is especially helpful to ensure the integrity of input data (BAM files).}
+  \item{plotAutosome(.): you can expect a plot generated for whole-genome level CNVs}
+  \item{exportCNVtables(.): CNV events of every sample will be outputted as a separate text file, with detailed information of coverage, CNV signal, average coverage across normal/reference sample etc.}
+  \item{segmentCNV(.): this function wraps segmentation utilities in "DNAcopy" package, and outputs segmentation regions (.bed files) and plots (.pdf files) into text- and plot- output folders specified by configuration file.}
+\end{enumerate}
+
+\section{Brief description of patternCNV algorithm}
+Besides of detecting coding region mutations, exome-seq has also been utilized to detect copy number variations (CNVs). However, uneven coverage of exonic regions inevitably cofounds read-depth based CNV algorithms. The idea behind proposed patternCNV approach is to summarize common coverage trends of a same exome capture-kit, and then facilitate accurate CNV estimation. Across multiple control-samples (i.e. germline), we proposed to summarize average and variability of exon-coverage, defined as "average-pattern" and "variability-pattern", respectively. Then, exon-level CNV is reliably estimated by computing difference between observed read-depth and expected coverage ("average-pattern"), while penalizing high-variability regions ("variability-pattern"). Comparing with state-of-art CNV algorithms (e.g. ExomeCNV, Varscan2), the proposed approach demonstrates improved resolution and increased signal-to-noise ratio to detect subtle CNV events. In addition, the developed patternCNV package is fast thanks to adoption of WIG file format (~0.1 percentage of BAM file size). Last but not least, patternCNV enables detection of germline CNV events, which are commonly ignored by germline-somatic pair approach.
+
+More algorithm details and comparisons have been discussed in submitted manuscript ("patternCNV: a versatile tool for detecting copy number changes from exome sequencing data").
+%\bibliographystyle{plainnat}
+
+\end{document}

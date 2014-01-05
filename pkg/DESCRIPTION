@@ -1,0 +1,16 @@
+Package: patternCNV
+Type: Package
+Title: patternCNV: a versatile tool for detecting copy number changes
+        from exome-seq data
+Version: 0.99.2
+Date: 2013-12-25
+Author: Chen Wang
+Maintainer: Chen Wang, <Wang.Chen@mayo.edu> or <topsoil.ustc@gmail.com>
+Description: PatternCNV is a versatile tool to facilitate CNV detection and interpretation from either Germline or Tumor/Normal pairs of Exome-seq samples. The idea behind proposed patternCNV approach is to summarize common coverage trends of a same exome capture-kit, and then facilitate accurate CNV estimation. Across multiple control-samples (i.e. germline), we proposed to summarize average and variability of exon-coverage, defined as "average-pattern" and "variability-pattern", respectively. Then, exon-level CNV is reliably estimated by computing difference between observed read-depth and expected coverage
+License: Artistic-2.0
+Depends: R (>= 2.15.2), methods, GenomicRanges (>= 1.6.7), IRanges, RCurl
+Imports: gplots, matrixStats, DNAcopy, SNPchip, fdrtool
+LazyLoad: yes
+biocViews: HighThroughputSequencing, CopyNumberVariants, Sequencing,
+        Visualization
+Packaged: 2013-12-21 01:53:15 UTC; topsoil
